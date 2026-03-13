@@ -1,13 +1,20 @@
 # 算法平台架构设计
 
-**版本：v1.1**
-**日期：2026-03-09（更新）**
+**版本：v1.2**
+**日期：2026-03-13（更新）**
 
 ---
 
 ## 1. 项目概述
 
-算法平台是一个独立的后端服务，负责算法库管理、Flow DSL 校验、DAG 调度执行和结果回调。它与 H4 平台通过 RESTful API 交互：H4 平台负责流程编排 UI 和状态展示，算法平台负责实际的算法执行引擎。
+算法平台是一个独立的后端服务，定位为**算法调度与执行系统**，负责算法目录查询、Flow DSL 校验、DAG 调度执行和结果回调。算法源码本身不再由本系统长期维护，而是由算法团队在独立算法仓库中开发、发布到私有 PyPI；算法平台通过算法元数据与版本映射管理可用算法，并在执行时按需加载算法代码。
+
+### 1.2 职责边界调整（2026-03-13）
+
+1. **算法团队**：负责算法开发、测试、打包、发布、更新和回滚。
+2. **算法仓库（私有 PyPI）**：负责算法制品分发，是算法代码的唯一发布源。
+3. **算法平台**：负责目录查询、版本解析、执行调度、状态回写、结果回调。
+4. **H4 平台**：负责流程编排 UI、参数配置和执行结果展示。
 
 ### 1.1 技术栈
 
@@ -44,6 +51,7 @@ graph TB
             EXEC_SVC[执行服务<br/>ExecutionService]
             VAL_SVC[校验服务<br/>ValidationService]
             CB_SVC[回调服务<br/>CallbackService]
+            RES_SVC[版本解析服务<br/>AlgorithmResolver]
         end
 
         subgraph 调度层
@@ -51,10 +59,17 @@ graph TB
             CELERY[Celery Workers]
         end
 
-        subgraph 算法层
+        subgraph 运行时算法层
             REG[算法注册表<br/>AlgorithmRegistry]
+            FETCH[算法下载器<br/>AlgorithmFetcher]
+            LOAD[算法加载器<br/>AlgorithmLoader]
             BASE[算法基类<br/>BaseAlgorithm]
-            ALGOS[具体算法实现]
+        end
+
+        subgraph 算法制品层
+            META[(算法元数据表)]
+            PYPI[(私有 PyPI)]
+            CODE_CACHE[本地代码缓存]
         end
 
         subgraph 存储层
@@ -75,12 +90,19 @@ graph TB
     AUTH --> EXEC_SVC
     AUTH --> VAL_SVC
 
+    ALG_SVC --> META
     EXEC_SVC --> ORC
+    EXEC_SVC --> RES_SVC
+    RES_SVC --> META
+    META --> PYPI
     ORC --> MQ
     MQ --> CELERY
-    CELERY --> REG
+    CELERY --> FETCH
+    FETCH --> PYPI
+    FETCH --> CODE_CACHE
+    CODE_CACHE --> LOAD
+    LOAD --> REG
     REG --> BASE
-    BASE --> ALGOS
 
     CELERY --> |节点状态回写| PG
     ORC --> |流程状态| PG
@@ -135,6 +157,10 @@ algorithm_repository/
 │   ├── services/                     # 业务逻辑层
 │   │   ├── __init__.py
 │   │   ├── algorithm_service.py      # 算法 CRUD
+│   │   ├── algorithm_catalog_service.py # 算法目录查询 + 元数据同步
+│   │   ├── algorithm_resolver.py     # algo_code/version -> 包信息解析
+│   │   ├── algorithm_fetcher.py      # 私有 PyPI 下载 + 哈希校验
+│   │   ├── algorithm_loader.py       # 动态导入 + 运行时注册
 │   │   ├── execution_service.py      # 执行生命周期管理
 │   │   ├── validation_service.py     # DSL 校验 + DAG 校验
 │   │   ├── callback_service.py       # 回调发送 + 重试
@@ -147,26 +173,36 @@ algorithm_repository/
 │   │   ├── dag.py                    # DAG 数据结构与无环校验
 │   │   └── tasks.py                  # Celery 任务定义
 │   │
-│   ├── algorithms/                   # 算法实现
+│   ├── algorithms/                   # 兼容期内置算法与基础契约（长期不再作为主算法来源）
 │   │   ├── __init__.py
-│   │   ├── base.py                   # BaseAlgorithm 基类
-│   │   ├── registry.py               # 算法注册表（自动发现）
-│   │   ├── ts_preprocessing/         # 时序预处理
-│   │   │   ├── __init__.py
-│   │   │   ├── linear_interp.py
-│   │   │   ├── ffill.py
-│   │   │   └── ...
-│   │   ├── ts_feature/               # 时序特征工程
-│   │   ├── ts_anomaly/               # 异常检测
-│   │   ├── text_nlp/                 # 文本与 NLP
-│   │   ├── cv_detection/             # 计算机视觉
-│   │   └── cv_ocr/                   # OCR 相关
+│   │   ├── base.py                   # BaseAlgorithm 基类 (含 execution_mode)
+│   │   ├── registry.py               # 运行时算法注册表（本地优先，缺失可动态补齐）
+│   │   ├── _algo_template.py         # 算法开发模板
+│   │   ├── data_cleaning/            # 数据清洗
+│   │   │   ├── missing_value.py      # 缺失值处理
+│   │   │   └── outliers.py           # 异常值检测与处理
+│   │   ├── data_processing/          # 数据处理
+│   │   │   ├── standardize.py        # 数据标准化
+│   │   │   ├── alignment.py          # 数据对齐
+│   │   │   ├── sampling.py           # 数据采样
+│   │   │   └── filter.py             # 数据滤波
+│   │   ├── task_scheduling/          # 任务排程
+│   │   │   ├── rule_fast.py          # 规则快速排程
+│   │   │   ├── rule_solver.py        # 规则求解器精准排程
+│   │   │   └── ga_heuristic.py       # GA启发式排程优化
+│   │   ├── quality_spc/              # 质量SPC
+│   │   │   ├── control_limit.py      # 控制限计算
+│   │   │   ├── process_capability.py # 过程能力指数计算
+│   │   │   └── anomaly_rules.py      # 判异/失控规则计算
+│   │   └── quality_prediction/       # 质量预测
+│   │       └── heat_treatment.py     # 热处理工艺质量预测
 │   │
 │   └── core/                         # 公共基础设施
 │       ├── __init__.py
 │       ├── database.py               # 数据库连接管理
 │       ├── redis.py                  # Redis 连接管理
 │       ├── minio_client.py           # MinIO 客户端
+│       ├── package_cache.py          # 算法代码缓存管理
 │       ├── celery_app.py             # Celery 实例配置
 │       ├── security.py               # API Key 认证、HMAC 签名
 │       ├── exceptions.py             # 自定义异常
@@ -254,6 +290,39 @@ class AlgorithmRegistry:
     @classmethod
     def list_all(cls, category: str = None, status: str = "active"):
         """按类别列出所有已注册算法"""
+        ...
+```
+
+### 4.1.1 方案A：本地优先，缺失时动态加载
+
+在 v1.2 方案中，`AlgorithmRegistry` 不再只承担“启动时扫描本地源码”的职责，而是配合 `AlgorithmResolver + AlgorithmFetcher + AlgorithmLoader` 形成“本地优先，缺失时下载”的运行时算法加载机制。
+
+```python
+class AlgorithmResolver:
+    """根据 algo_code@version 解析算法包元数据"""
+    async def resolve(self, algo_code: str, version: str) -> dict:
+        """
+        返回:
+        {
+            "package_name": "algo-missing-value",
+            "version": "1.0.0",
+            "artifact_url": "https://pypi.example/simple/...",
+            "artifact_hash": "sha256:..."
+        }
+        """
+        ...
+
+
+class AlgorithmLoader:
+    """当本地未命中时，负责下载、缓存、动态导入并注册算法"""
+    async def ensure_loaded(self, algo_code: str, version: str) -> Type[BaseAlgorithm]:
+        """
+        1. 检查注册表是否已存在
+        2. 若不存在，则解析包信息
+        3. 下载到本地缓存目录
+        4. 动态导入 entry 模块
+        5. 触发运行时注册
+        """
         ...
 ```
 
@@ -370,9 +439,13 @@ erDiagram
         int id PK
         int algorithm_id FK
         string version
+        string package_name
+        string artifact_hash
+        string source_type "builtin/pypi"
         json input_schema
         json output_schema
         int default_timeout_sec
+        bool is_active
         timestamp created_at
     }
 
@@ -427,8 +500,8 @@ erDiagram
 
 | 路由 | 方法 | 说明 |
 |:---|:---|:---|
-| `/v1/algorithms` | GET | 按类别获取算法目录 |
-| `/v1/algorithms/{algo_code}/versions/{version}` | GET | 获取算法版本 Schema |
+| `/v1/algorithms` | GET | 按类别获取算法目录（来源于元数据表/私有算法仓映射） |
+| `/v1/algorithms/{algo_code}/versions/{version}` | GET | 获取算法版本 Schema 与包元数据 |
 | **`/v1/executions/validate`** | **POST** | **预校验 Flow DSL（必须先调用）** |
 | **`/v1/executions`** | **POST** | **提交执行（仅校验通过后调用）** |
 | `/v1/executions/{execution_id}` | GET | 查询流程状态 |
@@ -523,6 +596,10 @@ sequenceDiagram
 sequenceDiagram
     participant MQ as RabbitMQ
     participant WK as Celery Worker
+    participant RES as AlgorithmResolver
+    participant FETCH as AlgorithmFetcher
+    participant CACHE as LocalCodeCache
+    participant LOAD as AlgorithmLoader
     participant REG as AlgorithmRegistry
     participant ALGO as 算法实例
     participant PG as PostgreSQL
@@ -530,8 +607,20 @@ sequenceDiagram
 
     MQ->>WK: 消费节点任务
     WK->>PG: 更新节点状态 → RUNNING
-    WK->>REG: 获取算法类 (algo_code@version)
-    REG-->>WK: 算法类
+    WK->>REG: 查询本地是否已注册 (algo_code@version)
+    alt 本地已命中
+        REG-->>WK: 算法类
+    else 本地未命中
+        WK->>RES: 解析包元数据
+        RES-->>WK: package_name + hash + source
+        WK->>FETCH: 下载算法代码包
+        FETCH->>CACHE: 写入本地缓存
+        CACHE-->>FETCH: 本地路径
+        FETCH-->>WK: 本地代码路径
+        WK->>LOAD: 动态导入并注册
+        LOAD->>REG: register()
+        REG-->>WK: 算法类
+    end
     WK->>ALGO: execute(params, inputs)
     alt 执行成功
         ALGO-->>WK: output_summary
@@ -565,9 +654,32 @@ sequenceDiagram
     end
 ```
 
+## 7. 算法与算子的统一（平级注册与智能合并调度）
+
+针对“缺失值处理”、“特征过滤”这类极其轻量、却又需要在前端自由连线组合的**小算子**，为了兼顾“对外逻辑平齐”与“内部执行极速”，系统采取如下特殊编排设计：
+
+### 7.1 元数据彻底平级化 (暴露给所有前端应用)
+系统内不设外壳大节点（如 CompositeNode）。所有的算子（无论是简单的 `df.fillna` 还是复杂的 `ModelTrain`），**全部作为一等公民继承 `BaseAlgorithm` 并注册到同一个 `AlgorithmRegistry` 中心池**。在 v1.2 方案中，这个注册行为既可以来自本地兼容算法，也可以来自私有 PyPI 下载后的动态导入。
+
+为了区分性能开销，在 `AlgorithmMeta` 中新增 `execution_mode` 标识：
+* `execution_mode = "in_memory"`：纯数据帧映射，如缺失值、标准化、过滤。
+* `execution_mode = "celery_task"`：重型耗时任务，如模型搜索、大规模训练。
+
+当前端请求 `GET /v1/algorithms` 时，可以直接获取到扁平化的结构树图，前端画布中每个小操作都可以被视为独立的标准算法节点进行连线。
+
+### 7.2 Orchestrator 引擎的动态打包压缩 (避免 IO 风暴)
+由于每个算法节点本应被拆分为独立 Celery 任务、且执行前后都要落盘 MinIO，如果让三个轻量数据算子串行独立执行，会导致极差的读写性能。
+
+因此，**执行引擎(Orchestrator)** 在下发任务建立真实 DAG 时，会进行一次 **“智能打包”**（图融合优化）：
+1. 遍历待执行的 DAG。
+2. 如果发现有连续多个连线的节点，其 `execution_mode` 均为 `in_memory`（例如：读取 -> 过滤 -> 标准化），则编排器**在底层将其打包压缩成一个单一的复合 Celery 任务**发往下游。
+3. Celery Worker 收到这个压缩任务后，在内部利用 Pandas 在**单次内存流转中将这些算法瞬间跑完**，只需进行最后一次 MinIO 上传。
+
+这种模式达成了：**“UI 交互自由组合无限制，底层调度偷偷内联保性能”**的极致体验。
+
 ---
 
-## 7. 节点数据传递（Mapping Rules）
+## 8. 节点数据传递（Mapping Rules）
 
 节点之间的数据通过 `mapping_rules` 传递：
 
@@ -589,7 +701,7 @@ sequenceDiagram
 
 ---
 
-## 8. 已确认的设计决策
+## 9. 已确认的设计决策
 
 | # | 决策项 | 结论 |
 |:--|:---|:---|
@@ -598,8 +710,12 @@ sequenceDiagram
 | 3 | **认证方式** | 内部系统间采用 **API Key**（`X-API-Key` 请求头），简单高效 |
 | 4 | **算法模板** | **一期支持**，提供示例模板（如时序数据质量诊断模板），返回测试数据即可 |
 | 5 | **校验与执行** | **拆分为两个独立接口**：`/v1/executions/validate`（预校验）+ `/v1/executions`（提交执行） |
+| 6 | **统一算子架构** | **平级注册与引擎图融合**：算子与算法平级暴露给前端。执行引擎根据算法的 `execution_mode` 将连续的轻量级 (`in_memory`) 节点在底层自动融合成一个单一 Celery 任务执行，极速省流。 |
+| 7 | **算法维护职责** | **外移到独立算法仓库**，算法平台不再长期维护算法源码，仅维护目录、版本与执行控制 |
+| 8 | **算法获取策略** | **本地优先，缺失时从私有 PyPI 下载并动态注册** |
+| 9 | **依赖策略** | **当前阶段共享一套基础依赖环境**，仅下载算法代码本身，不为每个算法创建独立依赖环境 |
 
-### 8.1 数据集存储策略
+### 9.1 数据集存储策略
 
 ```mermaid
 flowchart LR
@@ -617,7 +733,7 @@ flowchart LR
 
 ---
 
-## 9. 一期实现范围
+## 10. 一期实现范围
 
 根据 `project_plane.md` 中的工作计划，一期聚焦：
 
@@ -631,16 +747,20 @@ flowchart LR
 - [x] 手工整流程重试 API
 - [x] 回调发送（HMAC 签名 + 重试）
 - [x] 首批算法实现（时序预处理 + 时序特征工程 + 异常检测）
+- [x] 算法元数据维护（algo_code/version -> package_name/hash/source）
+- [x] Worker 端算法解析、下载、缓存、动态注册能力
+- [x] 本地内置算法与外部算法双通道兼容
 
 ### 非一期目标
 - 算法平台自有编排 UI
 - 补偿事务 / 跳过节点 / 降级策略
 - 算法热加载 / 动态插件
+- 每个算法包独立依赖环境
 - 文本/NLP 和 CV 类算法（二期）
 
 ---
 
-## 10. 算法模板示例（一期）
+## 11. 算法模板示例（一期）
 
 一期提供一个**时序数据质量诊断模板**作为示例，模板 API 返回模板 DSL 结构，H4 平台加载后供用户填充具体算法。
 

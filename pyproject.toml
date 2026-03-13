@@ -1,0 +1,6 @@
+[project]
+name = "algorithm_repository"
+version = "0.1.0"
+description = "算法仓库"
+readme = "README.md"
+requires-python = ">=3.12"
