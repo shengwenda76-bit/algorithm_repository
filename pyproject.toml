@@ -1,0 +1,15 @@
+[project]
+name = "algorithm-platform"
+version = "0.1.0"
+description = "Algorithm scheduling and execution platform scaffold"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "pydantic>=2,<3",
+    "pydantic-settings>=2,<3",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

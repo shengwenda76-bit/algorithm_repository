@@ -1,0 +1,7 @@
+services:
+  algorithm-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: python -c "print('algorithm platform scaffold')"

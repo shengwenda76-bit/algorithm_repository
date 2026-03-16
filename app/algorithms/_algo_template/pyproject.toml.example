@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "algo-template"
+version = "1.0.0"
+description = "Template algorithm plugin package"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.entry-points."algorithm_platform.algorithms"]
+algo_template = "algo_template.entry:TemplateAlgorithm"
+
+[tool.algorithm_platform]
+algo_code = "algo_template"
+category = "data_processing"
+display_name = "Template Algorithm"
