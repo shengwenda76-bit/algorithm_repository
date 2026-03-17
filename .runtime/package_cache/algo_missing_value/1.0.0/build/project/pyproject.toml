@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "algo-missing-value"
+version = "1.0.0"
+description = "Local build for missing_value"
+requires-python = ">=3.12"
+dependencies = ["algorithm-sdk"]
+
+[project.entry-points."algorithm_platform.algorithms"]
+missing_value = "algo_missing_value.entry:MissingValueAlgorithm"
