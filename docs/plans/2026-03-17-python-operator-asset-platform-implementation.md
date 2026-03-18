@@ -1,10 +1,10 @@
-# Python Operator Asset Platform Implementation Plan
+# Python Algorithm Library Platform Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a first-phase Python operator asset platform that standardizes algorithm packages, registers metadata, exposes a catalog, and provides an engine resolve API backed by private PyPI artifacts.
+**Goal:** Build a first-phase Python algorithm library platform that standardizes algorithm packages, publishes them to private PyPI, registers algorithm metadata, exposes H4-facing catalog APIs, and supports validation and debug execution.
 
-**Architecture:** Implement the platform as one Python monorepo with clear module boundaries: `sdk`, `algorithms`, `services`, and `tools`. Keep registry, catalog, and resolve capabilities in separate service modules with shared domain models so they can be deployed together first and split later.
+**Architecture:** Implement the first phase as one Python monorepo with clear module boundaries: `sdk`, `algorithms`, `services/library_platform`, and `tools`. Keep registry, catalog, and debug execution as modules inside one backend project so the platform stays simple while matching the approved一期设计.
 
 **Tech Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy, Alembic, PostgreSQL, pytest
 
@@ -16,7 +16,10 @@
 - Create: `README.md`
 - Create: `sdk/algorithm_sdk/__init__.py`
 - Create: `algorithms/.gitkeep`
-- Create: `services/.gitkeep`
+- Create: `services/library_platform/__init__.py`
+- Create: `services/library_platform/registry/__init__.py`
+- Create: `services/library_platform/catalog/__init__.py`
+- Create: `services/library_platform/debug/__init__.py`
 - Create: `tools/.gitkeep`
 - Modify: `pytest.ini`
 - Test: `tests/test_repo_layout.py`
@@ -30,20 +33,22 @@ from pathlib import Path
 def test_repo_layout_exists():
     assert Path("sdk/algorithm_sdk").is_dir()
     assert Path("algorithms").is_dir()
-    assert Path("services").is_dir()
+    assert Path("services/library_platform/registry").is_dir()
+    assert Path("services/library_platform/catalog").is_dir()
+    assert Path("services/library_platform/debug").is_dir()
     assert Path("tools").is_dir()
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_repo_layout.py -v`
-Expected: FAIL because directories and placeholder files do not exist.
+Expected: FAIL because the library platform directories do not exist.
 
 **Step 3: Write minimal implementation**
 
 ```python
 # sdk/algorithm_sdk/__init__.py
-"""Shared SDK for Python operator packages."""
+"""Shared SDK for Python algorithm packages."""
 ```
 
 ```ini
@@ -61,7 +66,7 @@ Expected: PASS
 
 ```bash
 git add README.md pytest.ini sdk algorithms services tools tests/test_repo_layout.py
-git commit -m "chore: initialize operator platform repository layout"
+git commit -m "chore: initialize python algorithm library platform layout"
 ```
 
 ### Task 2: Create SDK core contract
@@ -81,12 +86,12 @@ from algorithm_sdk.meta import AlgorithmMeta
 
 def test_algorithm_subclass_exposes_meta():
     class DemoAlgorithm(BaseAlgorithm):
-        meta = AlgorithmMeta(algo_code="demo", name="Demo", version="1.0.0")
+        meta = AlgorithmMeta(code="demo", name="Demo", version="1.0.0")
 
         def execute(self, inputs, params):
             return {"ok": True}
 
-    assert DemoAlgorithm.meta.algo_code == "demo"
+    assert DemoAlgorithm.meta.code == "demo"
 ```
 
 **Step 2: Run test to verify it fails**
@@ -113,7 +118,7 @@ from pydantic import BaseModel
 
 
 class AlgorithmMeta(BaseModel):
-    algo_code: str
+    code: str
     name: str
     version: str
 ```
@@ -130,7 +135,7 @@ git add sdk/algorithm_sdk tests/sdk/test_algorithm_contracts.py
 git commit -m "feat: add sdk core algorithm contracts"
 ```
 
-### Task 3: Add package metadata and entry-point validator
+### Task 3: Add metadata validator and package validator
 
 **Files:**
 - Create: `sdk/algorithm_sdk/validators.py`
@@ -140,27 +145,27 @@ git commit -m "feat: add sdk core algorithm contracts"
 **Step 1: Write the failing test**
 
 ```python
-from algorithm_sdk.validators import validate_runtime_contract
+from algorithm_sdk.validators import validate_algorithm_meta
 
 
-def test_validate_runtime_contract_requires_entry_point():
-    payload = {"entry_point_group": "algorithm_platform.algorithms"}
-    errors = validate_runtime_contract(payload)
-    assert "entry_point_target" in errors
+def test_validate_algorithm_meta_requires_entrypoint():
+    payload = {"code": "demo", "name": "Demo", "version": "1.0.0"}
+    errors = validate_algorithm_meta(payload)
+    assert "entrypoint" in errors
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/sdk/test_package_validator.py -v`
-Expected: FAIL because validator is missing.
+Expected: FAIL because the validator is missing.
 
 **Step 3: Write minimal implementation**
 
 ```python
-def validate_runtime_contract(payload):
+def validate_algorithm_meta(payload):
     errors = []
-    if "entry_point_target" not in payload:
-        errors.append("entry_point_target")
+    if "entrypoint" not in payload:
+        errors.append("entrypoint")
     return errors
 ```
 
@@ -173,7 +178,7 @@ Expected: PASS
 
 ```bash
 git add sdk/algorithm_sdk/validators.py tools/validate_package.py tests/sdk/test_package_validator.py
-git commit -m "feat: add runtime contract validator"
+git commit -m "feat: add algorithm metadata validator"
 ```
 
 ### Task 4: Create sample algorithm package template
@@ -199,7 +204,7 @@ def test_missing_value_algorithm_replaces_none():
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/algorithms/test_missing_value_algorithm.py -v`
-Expected: FAIL because package is not implemented.
+Expected: FAIL because the algorithm package is not implemented.
 
 **Step 3: Write minimal implementation**
 
@@ -227,31 +232,33 @@ Expected: PASS
 
 ```bash
 git add algorithms/algo_missing_value tests/algorithms/test_missing_value_algorithm.py
-git commit -m "feat: add sample operator package"
+git commit -m "feat: add sample algorithm package"
 ```
 
-### Task 5: Scaffold registry service domain models
+### Task 5: Define library platform domain models
 
 **Files:**
-- Create: `services/registry_service/app/models.py`
-- Create: `services/registry_service/app/schemas.py`
-- Create: `services/registry_service/tests/test_version_state_machine.py`
+- Create: `services/library_platform/models.py`
+- Create: `services/library_platform/schemas.py`
+- Create: `tests/platform/test_algorithm_models.py`
 
 **Step 1: Write the failing test**
 
 ```python
-from services.registry_service.app.models import AlgorithmVersion
+from services.library_platform.models import AlgorithmDefinition, PackageArtifact
 
 
-def test_published_is_only_default_executable_state():
-    version = AlgorithmVersion(version="1.0.0", lifecycle_state="Published")
-    assert version.is_resolvable() is True
+def test_algorithm_definition_and_package_artifact_share_code_and_version():
+    definition = AlgorithmDefinition(code="missing_value", name="Missing Value", version="1.0.0")
+    artifact = PackageArtifact(code="missing_value", version="1.0.0", package_name="algo-missing-value")
+    assert definition.code == artifact.code
+    assert definition.version == artifact.version
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `pytest services/registry_service/tests/test_version_state_machine.py -v`
-Expected: FAIL because model does not exist.
+Run: `pytest tests/platform/test_algorithm_models.py -v`
+Expected: FAIL because the models do not exist.
 
 **Step 3: Write minimal implementation**
 
@@ -259,51 +266,55 @@ Expected: FAIL because model does not exist.
 from pydantic import BaseModel
 
 
-class AlgorithmVersion(BaseModel):
+class AlgorithmDefinition(BaseModel):
+    code: str
+    name: str
     version: str
-    lifecycle_state: str
 
-    def is_resolvable(self) -> bool:
-        return self.lifecycle_state == "Published"
+
+class PackageArtifact(BaseModel):
+    code: str
+    version: str
+    package_name: str
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `pytest services/registry_service/tests/test_version_state_machine.py -v`
+Run: `pytest tests/platform/test_algorithm_models.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add services/registry_service
-git commit -m "feat: add registry domain models"
+git add services/library_platform tests/platform/test_algorithm_models.py
+git commit -m "feat: add library platform core models"
 ```
 
-### Task 6: Add registry write API
+### Task 6: Add register and validate APIs
 
 **Files:**
-- Create: `services/registry_service/app/main.py`
-- Create: `services/registry_service/app/routes/algorithms.py`
-- Create: `services/registry_service/tests/test_register_version_api.py`
+- Create: `services/library_platform/app.py`
+- Create: `services/library_platform/registry/routes.py`
+- Create: `tests/platform/test_registry_api.py`
 
 **Step 1: Write the failing test**
 
 ```python
 from fastapi.testclient import TestClient
-from services.registry_service.app.main import app
+from services.library_platform.app import app
 
 
-def test_register_version_returns_201():
+def test_register_algorithm_returns_201():
     client = TestClient(app)
-    payload = {"algo_code": "missing_value", "version": "1.0.0"}
-    response = client.post("/algorithms/missing_value/versions", json=payload)
+    payload = {"code": "missing_value", "name": "Missing Value", "version": "1.0.0"}
+    response = client.post("/algorithms/register", json=payload)
     assert response.status_code == 201
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `pytest services/registry_service/tests/test_register_version_api.py -v`
-Expected: FAIL because API route is missing.
+Run: `pytest tests/platform/test_registry_api.py -v`
+Expected: FAIL because the routes are missing.
 
 **Step 3: Write minimal implementation**
 
@@ -313,147 +324,149 @@ from fastapi import FastAPI, status
 app = FastAPI()
 
 
-@app.post("/algorithms/{algo_code}/versions", status_code=status.HTTP_201_CREATED)
-def register_version(algo_code: str, payload: dict):
-    return {"algo_code": algo_code, "version": payload["version"]}
+@app.post("/algorithms/register", status_code=status.HTTP_201_CREATED)
+def register_algorithm(payload: dict):
+    return payload
+
+
+@app.post("/algorithms/validate")
+def validate_algorithm(payload: dict):
+    return {"valid": True, "errors": []}
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `pytest services/registry_service/tests/test_register_version_api.py -v`
+Run: `pytest tests/platform/test_registry_api.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add services/registry_service
-git commit -m "feat: add registry version registration api"
+git add services/library_platform tests/platform/test_registry_api.py
+git commit -m "feat: add algorithm register and validate apis"
 ```
 
-### Task 7: Add catalog read API
+### Task 7: Add catalog query APIs
 
 **Files:**
-- Create: `services/catalog_service/app/main.py`
-- Create: `services/catalog_service/app/routes/catalog.py`
-- Create: `services/catalog_service/tests/test_catalog_api.py`
+- Create: `services/library_platform/catalog/routes.py`
+- Create: `tests/platform/test_catalog_api.py`
 
 **Step 1: Write the failing test**
 
 ```python
 from fastapi.testclient import TestClient
-from services.catalog_service.app.main import app
+from services.library_platform.app import app
 
 
-def test_catalog_lists_published_algorithms():
+def test_get_algorithms_returns_200():
     client = TestClient(app)
-    response = client.get("/catalog/algorithms")
+    response = client.get("/algorithms")
     assert response.status_code == 200
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `pytest services/catalog_service/tests/test_catalog_api.py -v`
-Expected: FAIL because API route is missing.
+Run: `pytest tests/platform/test_catalog_api.py -v`
+Expected: FAIL because the catalog routes are missing.
 
 **Step 3: Write minimal implementation**
 
 ```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.get("/catalog/algorithms")
+@app.get("/algorithms")
 def list_algorithms():
     return {"items": []}
+
+
+@app.get("/algorithms/{code}")
+def get_algorithm(code: str):
+    return {"code": code}
+
+
+@app.get("/algorithms/{code}/versions")
+def list_versions(code: str):
+    return {"code": code, "items": []}
+
+
+@app.get("/algorithms/{code}/versions/{version}")
+def get_version(code: str, version: str):
+    return {"code": code, "version": version}
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `pytest services/catalog_service/tests/test_catalog_api.py -v`
+Run: `pytest tests/platform/test_catalog_api.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add services/catalog_service
-git commit -m "feat: add catalog read api"
+git add services/library_platform tests/platform/test_catalog_api.py
+git commit -m "feat: add algorithm catalog query apis"
 ```
 
-### Task 8: Add engine resolve API
+### Task 8: Add debug execute API
 
 **Files:**
-- Create: `services/resolve_service/app/main.py`
-- Create: `services/resolve_service/app/routes/resolve.py`
-- Create: `services/resolve_service/tests/test_resolve_api.py`
+- Create: `services/library_platform/debug/routes.py`
+- Create: `tests/platform/test_debug_execute_api.py`
 
 **Step 1: Write the failing test**
 
 ```python
 from fastapi.testclient import TestClient
-from services.resolve_service.app.main import app
+from services.library_platform.app import app
 
 
-def test_resolve_returns_package_coordinates():
+def test_execute_debug_api_returns_200():
     client = TestClient(app)
-    payload = {"algo_code": "missing_value", "engine_type": "ekuiper"}
-    response = client.post("/engine/resolve", json=payload)
+    response = client.post("/algorithms/missing_value/execute", json={"inputs": {}, "params": {}})
     assert response.status_code == 200
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `pytest services/resolve_service/tests/test_resolve_api.py -v`
-Expected: FAIL because API route is missing.
+Run: `pytest tests/platform/test_debug_execute_api.py -v`
+Expected: FAIL because the debug execute route is missing.
 
 **Step 3: Write minimal implementation**
 
 ```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.post("/engine/resolve")
-def resolve_algorithm(payload: dict):
-    return {
-        "algo_code": payload["algo_code"],
-        "package_name": "algo-missing-value",
-        "package_version": "1.0.0",
-        "entry_point_target": "algo_missing_value.entry:MissingValueAlgorithm",
-    }
+@app.post("/algorithms/{code}/execute")
+def execute_algorithm(code: str, payload: dict):
+    return {"code": code, "result": {}, "message": "debug only"}
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `pytest services/resolve_service/tests/test_resolve_api.py -v`
+Run: `pytest tests/platform/test_debug_execute_api.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add services/resolve_service
-git commit -m "feat: add engine resolve api"
+git add services/library_platform tests/platform/test_debug_execute_api.py
+git commit -m "feat: add debug execute api"
 ```
 
 ### Task 9: Add persistence and migrations
 
 **Files:**
-- Create: `services/shared/db.py`
+- Create: `services/library_platform/db.py`
 - Create: `alembic.ini`
 - Create: `alembic/env.py`
-- Create: `alembic/versions/0001_create_operator_tables.py`
+- Create: `alembic/versions/0001_create_algorithm_library_tables.py`
 - Create: `tests/integration/test_schema_bootstrap.py`
 
 **Step 1: Write the failing test**
 
 ```python
-from services.shared.db import metadata
+from services.library_platform.db import metadata
 
 
 def test_metadata_contains_algorithm_tables():
     assert "algorithms" in metadata.tables
-    assert "algorithm_versions" in metadata.tables
+    assert "algorithm_artifacts" in metadata.tables
 ```
 
 **Step 2: Run test to verify it fails**
@@ -464,12 +477,12 @@ Expected: FAIL because database metadata is not defined.
 **Step 3: Write minimal implementation**
 
 ```python
-from sqlalchemy import MetaData, Table, Column, String
+from sqlalchemy import Column, MetaData, String, Table
 
 metadata = MetaData()
 
-Table("algorithms", metadata, Column("algo_code", String, primary_key=True))
-Table("algorithm_versions", metadata, Column("id", String, primary_key=True))
+Table("algorithms", metadata, Column("code", String, primary_key=True))
+Table("algorithm_artifacts", metadata, Column("id", String, primary_key=True))
 ```
 
 **Step 4: Run test to verify it passes**
@@ -480,8 +493,8 @@ Expected: PASS
 **Step 5: Commit**
 
 ```bash
-git add services/shared alembic.ini alembic tests/integration/test_schema_bootstrap.py
-git commit -m "feat: add operator platform persistence baseline"
+git add services/library_platform alembic.ini alembic tests/integration/test_schema_bootstrap.py
+git commit -m "feat: add algorithm library platform persistence baseline"
 ```
 
 ### Task 10: Add publish workflow CLI
@@ -498,7 +511,7 @@ from tools.publish_cli import build_register_payload
 
 def test_build_register_payload_contains_package_hash():
     payload = build_register_payload(
-        algo_code="missing_value",
+        code="missing_value",
         version="1.0.0",
         sha256="abc123",
     )
@@ -508,14 +521,14 @@ def test_build_register_payload_contains_package_hash():
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/tools/test_publish_cli.py -v`
-Expected: FAIL because helper does not exist.
+Expected: FAIL because the helper does not exist.
 
 **Step 3: Write minimal implementation**
 
 ```python
-def build_register_payload(algo_code, version, sha256):
+def build_register_payload(code, version, sha256):
     return {
-        "algo_code": algo_code,
+        "code": code,
         "version": version,
         "artifact": {"sha256": sha256},
     }
@@ -537,9 +550,9 @@ git commit -m "feat: add publish cli payload builder"
 
 **Files:**
 - Modify: `README.md`
-- Create: `docs/architecture/python-operator-asset-platform.md`
-- Create: `docs/operator-package-spec.md`
-- Test: `tests/docs/test_readme_mentions_services.py`
+- Create: `docs/architecture/python-algorithm-library-platform.md`
+- Create: `docs/algorithm-package-spec.md`
+- Test: `tests/docs/test_readme_mentions_platform_modules.py`
 
 **Step 1: Write the failing test**
 
@@ -547,36 +560,36 @@ git commit -m "feat: add publish cli payload builder"
 from pathlib import Path
 
 
-def test_readme_mentions_registry_catalog_and_resolve():
+def test_readme_mentions_registry_catalog_and_debug():
     content = Path("README.md").read_text(encoding="utf-8")
     assert "registry" in content
     assert "catalog" in content
-    assert "resolve" in content
+    assert "debug" in content
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/docs/test_readme_mentions_services.py -v`
+Run: `pytest tests/docs/test_readme_mentions_platform_modules.py -v`
 Expected: FAIL because README is empty.
 
 **Step 3: Write minimal implementation**
 
 ```markdown
-# Python Operator Asset Platform
+# Python Algorithm Library Platform
 
-This repository contains the SDK, operator packages, registry service, catalog service, and resolve service.
+This repository contains the SDK, algorithm packages, registry module, catalog module, and debug module.
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/docs/test_readme_mentions_services.py -v`
+Run: `pytest tests/docs/test_readme_mentions_platform_modules.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add README.md docs/architecture/python-operator-asset-platform.md docs/operator-package-spec.md tests/docs/test_readme_mentions_services.py
-git commit -m "docs: add operator platform onboarding docs"
+git add README.md docs/architecture/python-algorithm-library-platform.md docs/algorithm-package-spec.md tests/docs/test_readme_mentions_platform_modules.py
+git commit -m "docs: add algorithm library platform onboarding docs"
 ```
 
 ### Task 12: Run final verification
@@ -586,24 +599,24 @@ git commit -m "docs: add operator platform onboarding docs"
 
 **Step 1: Run focused test suites**
 
-Run: `pytest tests services -v`
+Run: `pytest tests -v`
 Expected: PASS for repository, SDK, algorithm package, API, persistence, tool, and docs tests.
 
 **Step 2: Run service smoke checks**
 
-Run: `python -m py_compile services/registry_service/app/main.py services/catalog_service/app/main.py services/resolve_service/app/main.py`
+Run: `python -m py_compile services/library_platform/app.py services/library_platform/models.py services/library_platform/db.py`
 Expected: PASS with no syntax errors.
 
 **Step 3: Update the plan with actual deviations**
 
 ```markdown
 - If actual file paths differ, record the final paths here before handing off.
-- If extra migrations or shared modules were needed, list them here.
+- If extra shared modules were needed, list them here.
 ```
 
 **Step 4: Create the final commit**
 
 ```bash
 git add .
-git commit -m "feat: deliver phase-one python operator asset platform baseline"
+git commit -m "feat: deliver phase-one python algorithm library platform baseline"
 ```
