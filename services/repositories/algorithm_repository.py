@@ -3,8 +3,8 @@ from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from services.library_platform.models import Algorithm, AlgorithmVersion, AlgorithmArtifact
-from services.library_platform.schemas.registry import RegisterRequest
+from services.models import Algorithm, AlgorithmVersion, AlgorithmArtifact
+from services.schemas.registry import RegisterRequest
 
 class AlgorithmRepository:
     def __init__(self, db: Session):

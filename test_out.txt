@@ -1,0 +1,57 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\02_dicitionary\github\h4\algorithm_repository
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collected 0 items / 2 errors
+
+=================================== ERRORS ====================================
+_____________ ERROR collecting tests/platform/test_catalog_api.py _____________
+ImportError while importing test module 'D:\02_dicitionary\github\h4\algorithm_repository\tests\platform\test_catalog_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\H0647\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\platform\test_catalog_api.py:3: in <module>
+    from services.library_platform.main import app
+services\library_platform\main.py:9: in <module>
+    from services.library_platform.app import create_fastapi_app
+services\library_platform\app.py:8: in <module>
+    from services.library_platform.routers.registry import router as registry_router
+services\library_platform\routers\__init__.py:1: in <module>
+    from .registry import router as registry_router
+services\library_platform\routers\registry.py:5: in <module>
+    from services.library_platform.services.registry_service import RegistryService
+services\library_platform\services\registry_service.py:5: in <module>
+    from sdk.algorithm_sdk.validators import validate_algorithm_meta, validate_package_artifact
+E   ModuleNotFoundError: No module named 'sdk'
+------------------------------- Captured stderr -------------------------------
+2026-03-20 15:39:32,923 | INFO     | root            | Logging configured successfully.
+____________ ERROR collecting tests/platform/test_registry_api.py _____________
+ImportError while importing test module 'D:\02_dicitionary\github\h4\algorithm_repository\tests\platform\test_registry_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\H0647\AppData\Local\Programs\Python\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\platform\test_registry_api.py:3: in <module>
+    from services.library_platform.main import app
+services\library_platform\main.py:9: in <module>
+    from services.library_platform.app import create_fastapi_app
+services\library_platform\app.py:8: in <module>
+    from services.library_platform.routers.registry import router as registry_router
+services\library_platform\routers\__init__.py:1: in <module>
+    from .registry import router as registry_router
+services\library_platform\routers\registry.py:5: in <module>
+    from services.library_platform.services.registry_service import RegistryService
+services\library_platform\services\registry_service.py:5: in <module>
+    from sdk.algorithm_sdk.validators import validate_algorithm_meta, validate_package_artifact
+E   ModuleNotFoundError: No module named 'sdk'
+------------------------------- Captured stderr -------------------------------
+2026-03-20 15:39:33,509 | INFO     | root            | Logging configured successfully.
+=========================== short test summary info ===========================
+ERROR tests/platform/test_catalog_api.py
+ERROR tests/platform/test_registry_api.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 1.31s ==============================

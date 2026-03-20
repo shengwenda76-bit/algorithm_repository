@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, status
 import logging
 
-from services.library_platform.schemas.registry import RegisterRequest, RegisterResponse, ValidateResponse
-from services.library_platform.services.registry_service import RegistryService
-from services.library_platform.dependencies import get_registry_service
+from services.schemas.registry import RegisterRequest, RegisterResponse, ValidateResponse
+from services.services.registry_service import RegistryService
+from services.dependencies import get_registry_service
 
 router = APIRouter(prefix="/algorithms", tags=["registry"])
 logger = logging.getLogger(__name__)

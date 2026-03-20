@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 from fastapi import Depends
-from services.library_platform.database.base import SessionLocal
-from services.library_platform.repositories.algorithm_repository import AlgorithmRepository
-from services.library_platform.services.registry_service import RegistryService
-from services.library_platform.services.catalog_service import CatalogService
+from services.database.base import SessionLocal
+from services.repositories.algorithm_repository import AlgorithmRepository
+from services.services.registry_service import RegistryService
+from services.services.catalog_service import CatalogService
 
 def get_db():
     db = SessionLocal()

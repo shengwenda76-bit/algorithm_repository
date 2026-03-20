@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
-from services.library_platform.repositories.algorithm_repository import AlgorithmRepository
+from services.repositories.algorithm_repository import AlgorithmRepository
 
 class CatalogService:
     def __init__(self, repository: AlgorithmRepository):

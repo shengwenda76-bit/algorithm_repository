@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from pathlib import Path
 
-from services.library_platform.settings import settings
+from services.settings import settings
 
 def get_database_url() -> str:
     url = settings.DATABASE_URL

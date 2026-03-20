@@ -2,9 +2,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 import logging
 
-from services.library_platform.schemas.catalog import AlgorithmListResponse, AlgorithmDetailResponse, VersionListResponse, VersionDetailResponse
-from services.library_platform.services.catalog_service import CatalogService
-from services.library_platform.dependencies import get_catalog_service
+from services.schemas.catalog import AlgorithmListResponse, AlgorithmDetailResponse, VersionListResponse, VersionDetailResponse
+from services.services.catalog_service import CatalogService
+from services.dependencies import get_catalog_service
 
 router = APIRouter(prefix="/algorithms", tags=["catalog"])
 logger = logging.getLogger(__name__)

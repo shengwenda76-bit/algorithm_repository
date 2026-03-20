@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from services.library_platform.database.base import Base
+from services.database.base import Base
 
 class AlgorithmArtifact(Base):
     __tablename__ = "algorithm_artifacts"

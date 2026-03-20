@@ -3,10 +3,10 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from services.library_platform.settings import settings
-from services.library_platform.database.migrations import init_db
-from services.library_platform.routers.registry import router as registry_router
-from services.library_platform.routers.catalog import router as catalog_router
+from services.settings import settings
+from services.database.migrations import init_db
+from services.routers.registry import router as registry_router
+from services.routers.catalog import router as catalog_router
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
-from services.library_platform.database.base import engine, Base
+from services.database.base import engine, Base
 # Import all models here so that Base.metadata.create_all recognizes them
-import services.library_platform.models
+import services.models
 
 import logging
 

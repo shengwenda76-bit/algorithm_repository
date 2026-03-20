@@ -3,7 +3,7 @@ from logging.handlers import TimedRotatingFileHandler
 import os
 from pathlib import Path
 
-from services.library_platform.settings import settings
+from services.settings import settings
 
 def setup_logging():
     log_file_path = settings.get_log_file_path

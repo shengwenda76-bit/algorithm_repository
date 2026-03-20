@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
-from services.library_platform.schemas.registry import AlgorithmDefinitionSchema
+from services.schemas.registry import AlgorithmDefinitionSchema
 
 class AlgorithmSummary(BaseModel):
     code: str

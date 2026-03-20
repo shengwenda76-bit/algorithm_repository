@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import relationship
-from services.library_platform.database.base import Base
+from services.database.base import Base
 
 class Algorithm(Base):
     __tablename__ = "algorithms"

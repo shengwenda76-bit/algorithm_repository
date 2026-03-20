@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
-from services.library_platform.database.base import Base
+from services.database.base import Base
 
 class AlgorithmVersion(Base):
     __tablename__ = "algorithm_versions"
